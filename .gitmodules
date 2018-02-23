@@ -12,10 +12,18 @@
 	url = https://github.com/riscv/riscv-gnu-toolchain.git
 [submodule "riscv-isa-sim"]
 	path = riscv-isa-sim
-	url = https://github.com/riscv/riscv-isa-sim.git
+	url = git@github.com:mit-sanctum/riscv-isa-sim.git
 [submodule "riscv-fesvr"]
 	path = riscv-fesvr
 	url = https://github.com/riscv/riscv-fesvr.git
 [submodule "riscv-qemu"]
 	path = riscv-qemu
 	url = git://github.com/riscv/riscv-qemu.git
+[submodule "security_monitor"]
+	path = security_monitor
+	url = git@github.com:mit-sanctum/security_monitor.git
+	branch = master
+[submodule "sanctum_bootloader"]
+	path = sanctum_bootloader
+	url = git@github.com:mit-sanctum/sanctum_bootloader.git
+	branch = master
