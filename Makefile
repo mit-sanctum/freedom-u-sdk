@@ -49,6 +49,15 @@ qemu_srcdir := $(srcdir)/riscv-qemu
 qemu_wrkdir := $(wrkdir)/riscv-qemu
 qemu := $(qemu_wrkdir)/prefix/bin/qemu-system-riscv64
 
+sb_srcdir := $(srcdir)/sanctum_bootloader
+sb_wrkdir := $(wrkdir)/sanctum_bootloader
+trng_bootloader := $(sb_wrkdir)/boot_trng.bin
+insecure_bootloader := $(sb_wrkdir)/boot_insecure.bin
+
+sm_srcdir := $(srcdir)/security_monitor
+sm_wrkdir := $(wrkdir)/security_monitor
+security_monitor := $(sm_wrkdir)/sm
+
 rootfs := $(wrkdir)/rootfs.bin
 
 target := riscv64-unknown-linux-gnu
@@ -145,6 +154,26 @@ linux-menuconfig: $(linux_wrkdir)/.config
 	$(MAKE) -C $(linux_srcdir) O=$(dir $<) ARCH=riscv savedefconfig
 	cp $(dir $<)/defconfig conf/linux_defconfig
 
+.PHONY: bootloaders
+bootloaders: $(sb_srcdir)
+	rm -rf $(sb_wrkdir)
+	cp -rf $(sb_srcdir) $(sb_wrkdir)
+	cd $(sb_wrkdir) && $(MAKE) all
+
+$(trng_bootloader): bootloaders
+
+$(insecure_bootloader): bootloaders
+
+$(security_monitor): $(sm_srcdir) $(vmlinux_stripped)
+	rm -rf $(sm_wrkdir)
+	mkdir -p $(sm_wrkdir)
+	cd $(sm_wrkdir) && $</configure \
+		--host=$(target) \
+		--with-payload=$(vmlinux_stripped) \
+		--enable-logo \
+		--with-logo=$(abspath security_monitor/sm/sm_logo.txt)
+	CFLAGS="-mabi=lp64d -march=rv64imafdc" $(MAKE) -C $(sm_wrkdir)
+
 $(bbl): $(pk_srcdir) $(vmlinux_stripped)
 	rm -rf $(pk_wrkdir)
 	mkdir -p $(pk_wrkdir)
@@ -209,8 +238,29 @@ clean:
 sim: $(spike) $(bbl)
 	$(spike) --isa=$(ISA) -p4 $(bbl)
 
+.PHONY: sim-sanctum-boot-insecure
+sim-sanctum-boot-insecure boot: $(spike) $(security_monitor) $(insecure_bootloader)
+	$(spike) -d -m1024 --bootloader $(insecure_bootloader) $(security_monitor)
+
+.PHONY: sim-sanctum-boot-trng
+sim-sanctum-boot-trng: $(spike) $(security_monitor) $(trng_bootloader)
+	$(spike) -m1024 --bootloader $(trng_bootloader) $(security_monitor)
+
 .PHONY: qemu
 qemu: $(qemu) $(bbl) $(rootfs)
 	$(qemu) -nographic -machine virt -kernel $(bbl) \
 		-drive file=$(rootfs),format=raw,id=hd0 -device virtio-blk-device,drive=hd0 \
 		-netdev user,id=net0 -device virtio-net-device,netdev=net0
+
+OBJCOPY = riscv64-unknown-elf-objcopy
+security_monitor_with_boot := $(qemu_wrkdir)/sm_plus_bootloader
+
+.PHONY: qemu-sanctum-boot-insecure
+qemu-sanctum-boot-insecure: $(qemu) $(security_monitor) $(insecure_bootloader) $(rootfs)
+	$(qemu) \
+		-nographic -machine virt \
+		-bios $(insecure_bootloader) \
+		-kernel $(security_monitor) \
+		-drive file=$(rootfs),format=raw,id=hd0 -device virtio-blk-device,drive=hd0 \
+		-netdev user,id=net0 -device virtio-net-device,netdev=net0 \
+		-s -S
