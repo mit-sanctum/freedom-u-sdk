@@ -259,8 +259,19 @@ security_monitor_with_boot := $(qemu_wrkdir)/sm_plus_bootloader
 qemu-sanctum-boot-insecure: $(qemu) $(security_monitor) $(insecure_bootloader) $(rootfs)
 	$(qemu) \
 		-nographic -machine virt \
-		-bios $(insecure_bootloader) \
+ 		-bios $(insecure_bootloader) \
 		-kernel $(security_monitor) \
 		-drive file=$(rootfs),format=raw,id=hd0 -device virtio-blk-device,drive=hd0 \
 		-netdev user,id=net0 -device virtio-net-device,netdev=net0 \
 		-s -S
+
+.PHONY: qemu-sanctum-boot-trng
+qemu-sanctum-boot-trng: $(qemu) $(security_monitor) $(trng_bootloader) $(rootfs)
+	$(qemu) \
+		-nographic -machine virt \
+ 		-bios $(trng_bootloader) \
+		-kernel $(security_monitor) \
+		-drive file=$(rootfs),format=raw,id=hd0 -device virtio-blk-device,drive=hd0 \
+		-netdev user,id=net0 -device virtio-net-device,netdev=net0 \
+		-s -S
+
